@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>地牢探险 - 手机版 Roguelike</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        touch-action: none;
+        color: white;
+        font-family: Arial, sans-serif;
+        max-width: 100vw;
+        overflow-x: hidden;
+      }
+      #title {
+        font-size: 24px;
+        margin: 10px 0;
+        text-shadow: 0 0 10px #0f0;
+      }
+      #status {
+        width: 100%;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        display: flex;
+        justify-content: space-around;
+        font-size: 14px;
+        flex-wrap: wrap;
+      }
+      .status-item {
+        margin: 5px;
+        display: flex;
+        align-items: center;
+      }
+      .status-icon {
+        margin-right: 5px;
+        font-size: 16px;
+      }
+      #gameCanvas {
+        background: #111;
+        margin: 10px;
+        border-radius: 5px;
+        box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+      }
+      #controls {
+        margin: 20px;
+        display: grid;
+        grid-template-columns: repeat(3, 60px);
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .control-btn {
+        width: 60px;
+        height: 60px;
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-size: 24px;
+        touch-action: none;
+        transition: all 0.2s;
+      }
+      .control-btn:active {
+        background: rgba(255, 255, 255, 0.3);
+        transform: scale(0.95);
+      }
+      #menu-btn {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 16px;
+      }
+      .modal {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.95);
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        display: none;
+        max-width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      .modal h2 {
+        color: #0f0;
+        margin-top: 0;
+      }
+      .btn {
+        background: #4caf50;
+        border: none;
+        padding: 10px 20px;
+        color: white;
+        border-radius: 5px;
+        margin: 10px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      .btn:active {
+        transform: scale(0.95);
+      }
+      #achievements {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 10px;
+        margin: 10px 0;
+      }
+      .achievement {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        border-radius: 5px;
+        text-align: left;
+      }
+      .achievement.unlocked {
+        background: rgba(0, 255, 0, 0.1);
+      }
+      .achievement-icon {
+        margin-right: 5px;
+      }
+      #tutorial {
+        text-align: left;
+        margin: 10px 0;
+      }
+      #tutorial h3 {
+        color: #0f0;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        margin: 5px 0;
+      }
+      .color-box {
+        width: 20px;
+        height: 20px;
+        margin-right: 10px;
+        border-radius: 3px;
+      }
+      #notification {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 255, 0, 0.9);
+        padding: 10px 20px;
+        border-radius: 20px;
+        display: none;
+        animation: fadeIn 0.3s;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -20px);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="title">地牢探险</div>
+    <div id="status">
+      <div class="status-item">
+        <span class="status-icon">👑</span>
+        <span>等级: <span id="levelText">1</span></span>
+      </div>
+      <div class="status-item">
+        <span class="status-icon">❤️</span>
+        <span>生命: <span id="hpText">100</span></span>
+      </div>
+      <div class="status-item">
+        <span class="status-icon">⚔️</span>
+        <span>攻击: <span id="attackText">10</span></span>
+      </div>
+      <div class="status-item">
+        <span class="status-icon">🏆</span>
+        <span>分数: <span id="scoreText">0</span></span>
+      </div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="controls">
+      <button class="control-btn">↖</button>
+      <button class="control-btn">↑</button>
+      <button class="control-btn">↗</button>
+      <button class="control-btn">←</button>
+      <button class="control-btn">·</button>
+      <button class="control-btn">→</button>
+      <button class="control-btn">↙</button>
+      <button class="control-btn">↓</button>
+      <button class="control-btn">↘</button>
+    </div>
+    <button id="menu-btn">菜单</button>
+    <div id="notification"></div>
+
+    <div id="gameOver" class="modal">
+      <h2>游戏结束</h2>
+      <p>最终分数: <span id="finalScore">0</span></p>
+      <p>最高分数: <span id="highScore">0</span></p>
+      <button id="restartBtn" class="btn">重新开始</button>
+      <button id="shareBtn" class="btn">分享成绩</button>
+    </div>
+
+    <div id="menuModal" class="modal">
+      <h2>菜单</h2>
+      <button id="continueBtn" class="btn">继续游戏</button>
+      <button id="newGameBtn" class="btn">新游戏</button>
+      <button id="achievementsBtn" class="btn">成就</button>
+      <button id="helpBtn" class="btn">游戏说明</button>
+    </div>
+
+    <div id="achievementsModal" class="modal">
+      <h2>成就</h2>
+      <div id="achievements">
+        <!-- 成就列表将由JavaScript动态生成 -->
+      </div>
+      <button class="btn" onclick="this.parentElement.style.display='none'">
+        关闭
+      </button>
+    </div>
+
+    <div id="helpModal" class="modal">
+      <h2>游戏说明</h2>
+      <div id="tutorial">
+        <h3>游戏目标</h3>
+        <p>在地牢中探索，收集武器，消灭敌人，尽可能获得高分并生存更久。</p>
+
+        <h3>操作方法</h3>
+        <p>使用屏幕底部的方向按钮移动角色。碰到敌人时自动战斗。</p>
+
+        <h3>图例说明</h3>
+        <div class="legend-item">
+          <div class="color-box" style="background: #0f0"></div>
+          <span>玩家</span>
+        </div>
+        <div class="legend-item">
+          <div class="color-box" style="background: #f00"></div>
+          <span>敌人</span>
+        </div>
+        <div class="legend-item">
+          <div class="color-box" style="background: #ff0"></div>
+          <span>生命药水</span>
+        </div>
+        <div class="legend-item">
+          <div class="color-box" style="background: #0ff"></div>
+          <span>武器</span>
+        </div>
+        <div class="legend-item">
+          <div class="color-box" style="background: #666"></div>
+          <span>墙壁</span>
+        </div>
+
+        <h3>得分方式</h3>
+        <ul>
+          <li>击杀敌人：100分 × 当前等级</li>
+          <li>收集生命值：50分</li>
+          <li>获得武器：200分</li>
+          <li>通过关卡：500分</li>
+        </ul>
+      </div>
+      <button class="btn" onclick="this.parentElement.style.display='none'">
+        关闭
+      </button>
+    </div>
+
+    <script src="game.js"></script>
+  </body>
+</html>
