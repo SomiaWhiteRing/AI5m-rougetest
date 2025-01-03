@@ -183,15 +183,27 @@
       </div>
       <div class="status-item">
         <span class="status-icon">❤️</span>
-        <span>生命: <span id="hpText">100</span></span>
+        <span>生命: <span id="hpText">100/100</span></span>
       </div>
       <div class="status-item">
         <span class="status-icon">⚔️</span>
         <span>攻击: <span id="attackText">10</span></span>
       </div>
       <div class="status-item">
+        <span class="status-icon">🏆️</span>
+        <span>防御: <span id="defenseText">5</span></span>
+      </div>
+      <div class="status-item">
+        <span class="status-icon">⭐</span>
+        <span>经验: <span id="expText">0%</span></span>
+      </div>
+      <div class="status-item">
         <span class="status-icon">🏆</span>
         <span>分数: <span id="scoreText">0</span></span>
+      </div>
+      <div class="status-item">
+        <span class="status-icon">⚡</span>
+        <span>连击: <span id="comboText">0</span></span>
       </div>
     </div>
     <canvas id="gameCanvas"></canvas>
@@ -213,6 +225,9 @@
       <h2>游戏结束</h2>
       <p>最终分数: <span id="finalScore">0</span></p>
       <p>最高分数: <span id="highScore">0</span></p>
+      <p>最大连击: <span id="finalCombo">0</span></p>
+      <p>击杀数量: <span id="finalKills">0</span></p>
+      <p>通过关卡: <span id="finalLevel">0</span></p>
       <button id="restartBtn" class="btn">重新开始</button>
       <button id="shareBtn" class="btn">分享成绩</button>
     </div>
@@ -239,10 +254,10 @@
       <h2>游戏说明</h2>
       <div id="tutorial">
         <h3>游戏目标</h3>
-        <p>在地牢中探索，收集武器，消灭敌人，尽可能获得高分并生存更久。</p>
+        <p>在地牢中探索，收集武器，消灭敌人，尽可能获得高分并生存更久。每5关会出现强大的Boss！</p>
 
         <h3>操作方法</h3>
-        <p>使用屏幕底部的方向按钮移动角色。碰到敌人时自动战斗。</p>
+        <p>使用屏幕底部的方向按钮或键盘方向键移动角色。碰到敌人时自动战斗。</p>
 
         <h3>图例说明</h3>
         <div class="legend-item">
@@ -254,6 +269,10 @@
           <span>敌人</span>
         </div>
         <div class="legend-item">
+          <div class="color-box" style="background: #ff4400"></div>
+          <span>Boss</span>
+        </div>
+        <div class="legend-item">
           <div class="color-box" style="background: #ff0"></div>
           <span>生命药水</span>
         </div>
@@ -262,21 +281,42 @@
           <span>武器</span>
         </div>
         <div class="legend-item">
+          <div class="color-box" style="background: #f0f"></div>
+          <span>陷阱</span>
+        </div>
+        <div class="legend-item">
+          <div class="color-box" style="background: #4444ff"></div>
+          <span>传送门</span>
+        </div>
+        <div class="legend-item">
           <div class="color-box" style="background: #666"></div>
           <span>墙壁</span>
         </div>
 
         <h3>得分方式</h3>
         <ul>
-          <li>击杀敌人：100分 × 当前等级</li>
-          <li>收集生命值：50分</li>
-          <li>获得武器：200分</li>
+          <li>击杀普通敌人：100分 × 当前等级</li>
+          <li>击杀Boss：1000分 × 当前等级</li>
+          <li>收集物品：50-200分</li>
           <li>通过关卡：500分</li>
         </ul>
+
+        <h3>特殊武器</h3>
+        <ul>
+          <li>魔剑：20%概率造成双倍伤害</li>
+          <li>屠龙刀：对Boss造成50%额外伤害</li>
+        </ul>
+
+        <h3>游戏提示</h3>
+        <ul>
+          <li>注意防御力可以减少受到的伤害</li>
+          <li>连续击杀敌人可以累积连击数</li>
+          <li>每5关出现的Boss非常强大，请做好准备</li>
+          <li>善用传送门可以快速躲避敌人</li>
+          <li>收集经验值升级可以提升全部属性</li>
+        </ul>
       </div>
-      <button class="btn" onclick="this.parentElement.style.display='none'">
-        关闭
-      </button>
+      <button class="btn" onclick="this.parentElement.style.display='none'">关闭</button>
     </div>
 
     <script src="game.js"></script>
