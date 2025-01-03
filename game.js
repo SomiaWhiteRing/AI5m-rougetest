@@ -12,21 +12,13 @@ const config = {
     weapon: "#0ff",
     trap: "#f0f",
     boss: "#ff4400",
-    portal: "#4444ff"
+    portal: "#4444ff",
+    stairs: "#8B4513"
   },
   sounds: {
-    hit: new Audio(
-      "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU" +
-        Array(100).join("0")
-    ),
-    collect: new Audio(
-      "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU" +
-        Array(100).join("1")
-    ),
-    levelUp: new Audio(
-      "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU" +
-        Array(100).join("2")
-    ),
+    hit: new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YU" + "A".repeat(100)),
+    collect: new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YU" + "B".repeat(100)),
+    levelUp: new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YU" + "C".repeat(100))
   },
   expToLevel: (level) => Math.floor(100 * Math.pow(1.5, level - 1)),
 };
@@ -35,9 +27,18 @@ const config = {
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// 设置画布大小
-canvas.width = config.tileSize * config.mapWidth;
-canvas.height = config.tileSize * config.mapHeight;
+function resizeCanvas() {
+  const container = canvas.parentElement;
+  const size = Math.min(container.clientWidth, 400);
+  canvas.width = config.tileSize * config.mapWidth;
+  canvas.height = config.tileSize * config.mapHeight;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+}
+
+// 监听窗口大小变化
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
 
 // 成就定义
 const achievements = [
@@ -244,7 +245,9 @@ const game = {
   totalDamageDealt: 0,
   totalDamageTaken: 0,
   maxLevel: 1,
-  currentCombo: 0
+  currentCombo: 0,
+  stairs: null,
+  showingConfirmation: false
 };
 
 // 武器数据
@@ -291,9 +294,9 @@ const bossTypes = [
 // 存档系统
 const saveGame = () => {
   try {
-    const saveData = {
-      score: game.score,
-      highScore: game.highScore,
+  const saveData = {
+    score: game.score,
+    highScore: game.highScore,
       achievements: achievements.map(a => ({
         id: a.id,
         unlocked: a.unlocked
@@ -320,20 +323,20 @@ const saveGame = () => {
 
 const loadGame = () => {
   try {
-    const saveData = localStorage.getItem("dungeonGame");
-    if (saveData) {
-      const data = JSON.parse(saveData);
+  const saveData = localStorage.getItem("dungeonGame");
+  if (saveData) {
+    const data = JSON.parse(saveData);
       
       // 加载基本数据
-      game.highScore = data.highScore || 0;
+    game.highScore = data.highScore || 0;
       
       // 加载成就
-      if (data.achievements) {
-        data.achievements.forEach((a) => {
-          const achievement = achievements.find((ach) => ach.id === a.id);
-          if (achievement) achievement.unlocked = a.unlocked;
-        });
-      }
+    if (data.achievements) {
+      data.achievements.forEach((a) => {
+        const achievement = achievements.find((ach) => ach.id === a.id);
+        if (achievement) achievement.unlocked = a.unlocked;
+      });
+    }
       
       // 加载统计数据
       if (data.stats) {
@@ -397,289 +400,147 @@ const updateAchievementsDisplay = () => {
     .join("");
 };
 
-// 通知系统
-const showNotification = (message) => {
-  const notification = document.getElementById("notification");
+// 通知队列系统
+const notificationQueue = [];
+let isShowingNotification = false;
+
+function showNotification(message, type = 'normal') {
+  notificationQueue.push({ message, type });
+  if (!isShowingNotification) {
+    processNotificationQueue();
+  }
+}
+
+function processNotificationQueue() {
+  if (notificationQueue.length === 0) {
+    isShowingNotification = false;
+    return;
+  }
+
+  isShowingNotification = true;
+  const { message, type } = notificationQueue.shift();
+  
+  const container = document.getElementById('notifications-container');
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
   notification.textContent = message;
-  notification.style.display = "block";
+  
+  container.appendChild(notification);
+  
   setTimeout(() => {
-    notification.style.display = "none";
-  }, 3000);
-};
-
-// 更新状态显示
-function updateStatus() {
-  document.getElementById("levelText").textContent = game.level;
-  document.getElementById("hpText").textContent = `${game.player.hp}/${game.player.maxHp}`;
-  document.getElementById("attackText").textContent = 
-    game.player.attack + (game.player.weapon ? game.player.weapon.attack : 0);
-  document.getElementById("defenseText").textContent = game.player.defense;
-  document.getElementById("scoreText").textContent = game.score;
-  document.getElementById("comboText").textContent = game.currentCombo;
-  
-  const expProgress = Math.floor((game.player.exp / game.player.nextLevelExp) * 100);
-  document.getElementById("expText").textContent = `${expProgress}%`;
+    notification.style.opacity = '0';
+    setTimeout(() => {
+      container.removeChild(notification);
+      processNotificationQueue();
+    }, 300);
+  }, 2000);
 }
 
-// 生成随机地图
-function generateMap() {
-  game.map = [];
-  for (let y = 0; y < config.mapHeight; y++) {
-    game.map[y] = [];
-    for (let x = 0; x < config.mapWidth; x++) {
-      game.map[y][x] = Math.random() < 0.3 ? 1 : 0;
-    }
-  }
+// 显示伤害数字
+function showDamageNumber(x, y, damage, isHeal = false) {
+  const canvas = document.getElementById('gameCanvas');
+  const rect = canvas.getBoundingClientRect();
+  
+  const damageNumber = document.createElement('div');
+  damageNumber.className = `damage-number ${isHeal ? 'heal-number' : ''}`;
+  damageNumber.textContent = damage;
+  
+  const screenX = rect.left + (x * config.tileSize) + (config.tileSize / 2);
+  const screenY = rect.top + (y * config.tileSize);
+  
+  damageNumber.style.left = `${screenX}px`;
+  damageNumber.style.top = `${screenY}px`;
+  
+  document.body.appendChild(damageNumber);
+  
+  setTimeout(() => {
+    document.body.removeChild(damageNumber);
+  }, 800);
+}
 
-  // 确保玩家起始位置可用
-  game.player.x = 1;
-  game.player.y = 1;
-  game.map[1][1] = 0;
-
-  // 生成敌人
-  game.enemies = [];
-  const enemyCount = 3 + Math.floor(game.level / 2);
-  for (let i = 0; i < enemyCount; i++) {
-    let x, y;
-    do {
-      x = Math.floor(Math.random() * (config.mapWidth - 2)) + 1;
-      y = Math.floor(Math.random() * (config.mapHeight - 2)) + 1;
-    } while (game.map[y][x] !== 0 || 
-             (Math.abs(x - game.player.x) < 3 && Math.abs(y - game.player.y) < 3));
+// 修改战斗处理部分
+function handleCombat(enemy, damage) {
+  enemy.hp -= damage;
+  showDamageNumber(enemy.x, enemy.y, damage);
+  game.totalDamageDealt += damage;
+  
+  if (enemy.hp <= 0) {
+    handleEnemyDeath(enemy);
+  } else {
+    // 敌人反击
+    const enemyDamage = Math.max(1, enemy.attack - game.player.defense);
+    game.player.hp -= enemyDamage;
+    game.totalDamageTaken += enemyDamage;
+    showDamageNumber(game.player.x, game.player.y, enemyDamage);
     
-    const enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-    game.enemies.push({
-      ...enemyType,
-      x,
-      y,
-      hp: enemyType.hp + game.level * 5,
-      attack: enemyType.attack + Math.floor(game.level / 2)
-    });
-  }
-
-  // 生成物品
-  game.items = [];
-  const itemCount = Math.min(3 + Math.floor(game.level / 3), 6);
-  for (let i = 0; i < itemCount; i++) {
-    let x, y;
-    do {
-      x = Math.floor(Math.random() * (config.mapWidth - 2)) + 1;
-      y = Math.floor(Math.random() * (config.mapHeight - 2)) + 1;
-    } while (game.map[y][x] !== 0 || 
-             isPositionOccupied(x, y) ||
-             (Math.abs(x - game.player.x) < 2 && Math.abs(y - game.player.y) < 2));
-      
-      const itemType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
-      game.items.push({ ...itemType, x, y });
+    if (enemy.isBoss) {
+      handleBossSkills(enemy);
     }
-
-  // 生成武器
-  game.weapons = [];
-  if (Math.random() < 0.7) {
-    let x, y;
-    do {
-      x = Math.floor(Math.random() * (config.mapWidth - 2)) + 1;
-      y = Math.floor(Math.random() * (config.mapHeight - 2)) + 1;
-    } while (game.map[y][x] !== 0 || 
-             isPositionOccupied(x, y) ||
-             (Math.abs(x - game.player.x) < 2 && Math.abs(y - game.player.y) < 2));
-      
-      const weaponLevel = Math.min(Math.floor(game.level / 3), weaponTypes.length - 1);
-      const weaponType = weaponTypes[Math.max(0, weaponLevel)];
-      game.weapons.push({ ...weaponType, x, y });
-    }
-
-  // 生成陷阱
-  game.traps = [];
-  const trapCount = Math.floor(game.level / 3);
-  for (let i = 0; i < trapCount; i++) {
-    let x, y;
-    do {
-      x = Math.floor(Math.random() * (config.mapWidth - 2)) + 1;
-      y = Math.floor(Math.random() * (config.mapHeight - 2)) + 1;
-    } while (game.map[y][x] !== 0);
-    game.traps.push({ x, y, damage: 10 + game.level * 2 });
-  }
-
-  // 每5关生成一个boss
-  if (game.level % 5 === 0 && !game.bossDefeated) {
-    const bossType = bossTypes[Math.floor(Math.random() * bossTypes.length)];
-    let x, y;
-    do {
-      x = Math.floor(Math.random() * (config.mapWidth - 2)) + 1;
-      y = Math.floor(Math.random() * (config.mapHeight - 2)) + 1;
-    } while (game.map[y][x] !== 0);
-    game.enemies.push({
-      ...bossType,
-      x,
-      y,
-      isBoss: true,
-      currentHp: bossType.hp
-    });
-  }
-
-  // 生成传送门
-  if (Math.random() < 0.3) {
-    let x1, y1, x2, y2;
-    do {
-      x1 = Math.floor(Math.random() * (config.mapWidth - 2)) + 1;
-      y1 = Math.floor(Math.random() * (config.mapHeight - 2)) + 1;
-    } while (game.map[y1][x1] !== 0);
-    do {
-      x2 = Math.floor(Math.random() * (config.mapWidth - 2)) + 1;
-      y2 = Math.floor(Math.random() * (config.mapHeight - 2)) + 1;
-    } while (game.map[y2][x2] !== 0 || (x2 === x1 && y2 === y1));
     
-    game.portals = [
-      { x: x1, y: y1, target: { x: x2, y: y2 } },
-      { x: x2, y: y2, target: { x: x1, y: y1 } }
-    ];
+    if (game.player.hp <= 0) {
+      gameOver();
+    }
+    game.currentCombo = 0;
   }
+  
+  updateStatus();
+  render();
+}
 
-  // 触发随机事件
-  events.forEach(event => {
-    if (Math.random() < event.chance) {
-      event.trigger();
+// 敌人主动攻击
+function updateEnemies() {
+  game.enemies.forEach((enemy) => {
+    const dx = game.player.x - enemy.x;
+    const dy = game.player.y - enemy.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance <= 1) { // 如果在攻击范围内
+      const enemyDamage = Math.max(1, enemy.attack - game.player.defense);
+      game.player.hp -= enemyDamage;
+      game.totalDamageTaken += enemyDamage;
+      showDamageNumber(game.player.x, game.player.y, enemyDamage);
+      
+      if (game.player.hp <= 0) {
+        gameOver();
+        return;
+      }
+      updateStatus();
+      render();
+    } else if (distance < 5 && Math.random() < 0.3) { // 追击玩家
+      const moveX = Math.sign(dx);
+      const moveY = Math.sign(dy);
+      
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (!tryMoveEnemy(enemy, moveX, 0)) {
+          tryMoveEnemy(enemy, 0, moveY);
+        }
+      } else {
+        if (!tryMoveEnemy(enemy, 0, moveY)) {
+          tryMoveEnemy(enemy, moveX, 0);
+        }
+      }
     }
   });
 }
 
-// 渲染游戏
-function render() {
-  if (game.isPaused) return;
-
-  ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // 绘制地图
-  for (let y = 0; y < config.mapHeight; y++) {
-    for (let x = 0; x < config.mapWidth; x++) {
-      ctx.fillStyle = game.map[y][x] ? config.colors.wall : config.colors.floor;
-      ctx.fillRect(
-        x * config.tileSize,
-        y * config.tileSize,
-        config.tileSize - 1,
-        config.tileSize - 1
-      );
-    }
+// 修改陷阱处理
+function handleTrap(trap) {
+  const damage = Math.max(1, trap.damage - game.player.defense);
+  game.player.hp -= damage;
+  game.totalDamageTaken += damage;
+  showDamageNumber(game.player.x, game.player.y, damage);
+  showNotification(`触发陷阱！`, 'important');
+  
+  if (game.player.hp <= 0) {
+    gameOver();
+    return true;
   }
-
-  // 绘制陷阱
-  game.traps.forEach(trap => {
-    ctx.fillStyle = config.colors.trap;
-    ctx.fillRect(
-      trap.x * config.tileSize,
-      trap.y * config.tileSize,
-      config.tileSize - 1,
-      config.tileSize - 1
-    );
-  });
-
-  // 绘制传送门
-  game.portals.forEach(portal => {
-    ctx.fillStyle = config.colors.portal;
-    ctx.fillRect(
-      portal.x * config.tileSize,
-      portal.y * config.tileSize,
-      config.tileSize - 1,
-      config.tileSize - 1
-    );
-  });
-
-  // 绘制物品
-  game.items.forEach(item => {
-    ctx.fillStyle = item.color || config.colors.item;
-    ctx.fillRect(
-      item.x * config.tileSize,
-      item.y * config.tileSize,
-      config.tileSize - 1,
-      config.tileSize - 1
-    );
-  });
-
-  // 绘制武器
-  game.weapons.forEach(weapon => {
-    ctx.fillStyle = weapon.color || config.colors.weapon;
-    ctx.fillRect(
-      weapon.x * config.tileSize,
-      weapon.y * config.tileSize,
-      config.tileSize - 1,
-      config.tileSize - 1
-    );
-  });
-
-  // 绘制敌人
-  game.enemies.forEach(enemy => {
-    ctx.fillStyle = enemy.isBoss ? config.colors.boss : 
-                   enemy.isElite ? "#ff00ff" : 
-                   enemy.color || config.colors.enemy;
-    ctx.fillRect(
-      enemy.x * config.tileSize,
-      enemy.y * config.tileSize,
-      config.tileSize - 1,
-      config.tileSize - 1
-    );
-    
-    // 绘制生命条
-    if (enemy.isBoss || enemy.isElite) {
-      const hpPercent = enemy.hp / (enemy.isBoss ? enemy.currentHp : enemy.maxHp || enemy.hp);
-      const hpWidth = config.tileSize - 2;
-      const currentHpWidth = hpWidth * hpPercent;
-      
-      // 背景
-      ctx.fillStyle = "#600";
-      ctx.fillRect(
-        enemy.x * config.tileSize,
-        enemy.y * config.tileSize - 4,
-        hpWidth,
-        3
-      );
-      
-      // 当前生命值
-      ctx.fillStyle = "#f00";
-      ctx.fillRect(
-        enemy.x * config.tileSize,
-        enemy.y * config.tileSize - 4,
-        currentHpWidth,
-        3
-      );
-    }
-  });
-
-  // 绘制玩家
-  ctx.fillStyle = config.colors.player;
-  ctx.fillRect(
-    game.player.x * config.tileSize,
-    game.player.y * config.tileSize,
-    config.tileSize - 1,
-    config.tileSize - 1
-  );
-  
-  // 绘制玩家生命条
-  const playerHpPercent = game.player.hp / game.player.maxHp;
-  const hpWidth = config.tileSize - 2;
-  const currentHpWidth = hpWidth * playerHpPercent;
-  
-  // 背景
-  ctx.fillStyle = "#600";
-  ctx.fillRect(
-    game.player.x * config.tileSize,
-    game.player.y * config.tileSize - 4,
-    hpWidth,
-    3
-  );
-  
-  // 当前生命值
-  ctx.fillStyle = "#f00";
-  ctx.fillRect(
-    game.player.x * config.tileSize,
-    game.player.y * config.tileSize - 4,
-    currentHpWidth,
-    3
-  );
+  updateStatus();
+  render();
+  return false;
 }
 
-// 移动处理
+// 修改移动处理中的陷阱检查
 function move(dx, dy) {
   if (game.isGameOver || game.isPaused) return;
 
@@ -694,15 +555,20 @@ function move(dx, dy) {
     return;
   }
 
-  // 检查陷阱
-  const trap = game.traps.find(t => t.x === newX && t.y === newY);
-  if (trap) {
-    game.player.hp -= Math.max(1, trap.damage - game.player.defense);
-    showNotification(`触发陷阱！受到 ${trap.damage} 点伤害`);
-    if (game.player.hp <= 0) {
-      gameOver();
+  // 检查是否踩到楼梯
+  if (game.stairs && newX === game.stairs.x && newY === game.stairs.y) {
+    if (!game.showingConfirmation) {
+      showConfirmation("是否前往下一层？");
+      game.showingConfirmation = true;
       return;
     }
+    return;
+  }
+
+  // 检查陷阱
+  const trap = game.traps.find(t => t.x === newX && t.y === newY);
+  if (trap && handleTrap(trap)) {
+    return;
   }
 
   // 检查传送门
@@ -712,7 +578,7 @@ function move(dx, dy) {
     game.player.y = portal.target.y;
     game.portalUsed++;
     showNotification("传送成功！");
-    checkAchievements();
+      checkAchievements();
     updateStatus();
     render();
     return;
@@ -746,77 +612,7 @@ function move(dx, dy) {
     }
 
     // 伤害计算
-    enemy.hp -= damage;
-    game.totalDamageDealt += damage;
-
-    if (enemy.hp <= 0) {
-      game.enemies = game.enemies.filter(e => e !== enemy);
-      let expGain = enemy.exp;
-      let scoreGain = 100 * game.level;
-      
-      if (enemy.isBoss) {
-        expGain *= 2;
-        scoreGain = 1000 * game.level;
-        game.bossDefeated = true;
-        game.bossKills++;
-        showNotification(`击败Boss！获得 ${expGain} 经验值和大量分数！`);
-        
-        if (Math.random() < 0.5) {
-          game.weapons.push({
-            ...weaponTypes[weaponTypes.length - 1],
-            x: enemy.x,
-            y: enemy.y
-          });
-        }
-      } else if (enemy.isElite) {
-        expGain *= 1.5;
-        scoreGain *= 2;
-        game.eliteKills++;
-        showNotification(`击败精英怪物！获得 ${expGain} 经验值！`);
-      } else {
-        showNotification(`击败敌人！连击 ${game.currentCombo}！获得 ${expGain} 经验值`);
-      }
-      
-      game.player.exp += expGain;
-      game.score += scoreGain;
-      game.totalKills++;
-      
-      // 经验值检查
-      while (game.player.exp >= game.player.nextLevelExp) {
-        game.player.exp -= game.player.nextLevelExp;
-        playerLevelUp();
-      }
-      
-      checkAchievements();
-    } else {
-      // 敌人反击
-      let enemyDamage = Math.max(1, enemy.attack - game.player.defense);
-      
-      if (enemy.isBoss) {
-        enemy.skills.forEach(skill => {
-          if (Math.random() < skill.chance) {
-            if (skill.damage) {
-              enemyDamage = Math.max(1, skill.damage - game.player.defense);
-              showNotification(`Boss使用${skill.name}！造成 ${enemyDamage} 点伤害`);
-            } else if (skill.summonCount) {
-              for (let i = 0; i < skill.summonCount; i++) {
-                spawnMinion(enemy);
-              }
-              showNotification(`Boss召唤了 ${skill.summonCount} 个随从！`);
-            }
-          }
-        });
-      }
-      
-      game.player.hp -= enemyDamage;
-      game.totalDamageTaken += enemyDamage;
-      showNotification(`受到 ${enemyDamage} 点伤害`);
-      
-      if (game.player.hp <= 0) {
-        gameOver();
-      }
-      game.currentCombo = 0;
-    }
+    handleCombat(enemy, damage);
     return;
   }
 
@@ -847,6 +643,11 @@ function move(dx, dy) {
     showNotification(`通过第 ${game.level - 1} 关！`);
     generateMap();
     checkAchievements();
+  }
+
+  // 在敌人全部被消灭后生成楼梯
+  if (game.enemies.length === 0 && !game.stairs) {
+    generateStairs();
   }
 
   updateStatus();
@@ -890,6 +691,8 @@ function restartGame() {
   game.totalDamageDealt = 0;
   game.totalDamageTaken = 0;
   game.maxLevel = 1;
+  game.stairs = null;
+  game.showingConfirmation = false;
   
   // 重置玩家状态
   game.player = { 
@@ -972,43 +775,42 @@ document.getElementById("shareBtn").addEventListener("click", () => {
 });
 
 // 控制按钮事件处理
-const buttons = document.querySelectorAll(".control-btn");
-const directions = [
-  [-1, -1],
-  [0, -1],
-  [1, -1],
-  [-1, 0],
-  [0, 0],
-  [1, 0],
-  [-1, 1],
-  [0, 1],
-  [1, 1],
-];
+const directions = {
+  'upBtn': [0, -1],
+  'leftBtn': [-1, 0],
+  'rightBtn': [1, 0],
+  'downBtn': [0, 1]
+};
 
-buttons.forEach((btn, index) => {
-  // 同时支持触摸和点击
-  const handleInput = (e) => {
+// 添加按钮事件监听
+Object.keys(directions).forEach(btnId => {
+  const btn = document.getElementById(btnId);
+  if (btn) {
+    ['touchstart', 'mousedown'].forEach(eventType => {
+      btn.addEventListener(eventType, (e) => {
     e.preventDefault();
-    if (index !== 4) { // 跳过中间的按钮
-      move(directions[index][0], directions[index][1]);
+        const [dx, dy] = directions[btnId];
+        move(dx, dy);
       render();
-    }
-  };
-  
-  btn.addEventListener('touchstart', handleInput);
-  btn.addEventListener('mousedown', handleInput);
+      });
+    });
+  }
 });
 
 // 添加键盘控制支持
+const keyDirections = {
+  'ArrowUp': [0, -1],
+  'ArrowDown': [0, 1],
+  'ArrowLeft': [-1, 0],
+  'ArrowRight': [1, 0],
+  'w': [0, -1],
+  's': [0, 1],
+  'a': [-1, 0],
+  'd': [1, 0]
+};
+
 document.addEventListener('keydown', (e) => {
   if (game.isGameOver || game.isPaused) return;
-  
-  const keyDirections = {
-    'ArrowUp': [0, -1],
-    'ArrowDown': [0, 1],
-    'ArrowLeft': [-1, 0],
-    'ArrowRight': [1, 0],
-  };
   
   const direction = keyDirections[e.key];
   if (direction) {
@@ -1087,9 +889,9 @@ function updateEnemies() {
 
 // 尝试移动敌人
 function tryMoveEnemy(enemy, dx, dy) {
-  const newX = enemy.x + dx;
-  const newY = enemy.y + dy;
-  
+      const newX = enemy.x + dx;
+      const newY = enemy.y + dy;
+
   // 检查是否可以移动到新位置
   if (newX >= 0 && newX < config.mapWidth && 
       newY >= 0 && newY < config.mapHeight && 
@@ -1097,8 +899,8 @@ function tryMoveEnemy(enemy, dx, dy) {
       !game.enemies.some(e => e !== enemy && e.x === newX && e.y === newY) &&
       !(game.player.x === newX && game.player.y === newY)) {
     
-    enemy.x = newX;
-    enemy.y = newY;
+        enemy.x = newX;
+        enemy.y = newY;
     return true;
   }
   return false;
@@ -1109,10 +911,16 @@ gameLoop();
 
 // 修改音效播放函数
 const playSound = (sound) => {
-  sound.currentTime = 0;
-  sound.play().catch(err => {
-    console.log('音效播放失败:', err);
-  });
+  try {
+    if (sound) {
+      sound.currentTime = 0;
+      sound.play().catch(() => {
+        // 忽略音效播放错误
+      });
+    }
+  } catch (err) {
+    // 忽略音效相关错误
+  }
 };
 
 // 玩家升级
@@ -1201,11 +1009,16 @@ function handleItemPickup(item) {
   game.score += scoreGain;
   showNotification(message);
   
+  // 从地图上移除物品
+  game.items = game.items.filter(i => i !== item);
+  
   // 经验值检查
   while (game.player.exp >= game.player.nextLevelExp) {
     game.player.exp -= game.player.nextLevelExp;
     playerLevelUp();
   }
+  
+  updateStatus();
 }
 
 // 武器拾取处理
@@ -1221,12 +1034,627 @@ function handleWeaponPickup(weapon) {
   if (weapon.name === "金剑") game.hasGoldSword = true;
   game.collectedWeapons.add(weapon.name);
   game.player.weapon = { ...weapon };
-  game.score += 200;
   
+  // 从地图上移除武器
+  game.weapons = game.weapons.filter(w => w !== weapon);
+  
+  game.score += 200;
   showNotification(`获得${weapon.name}！${weapon.description}`);
   if (weapon.special) {
     showNotification(`特殊效果：${weapon.special}`);
   }
   
   checkAchievements();
+  updateStatus();
+}
+
+// 工具提示处理
+const tooltip = document.getElementById('tooltip');
+const statusItems = document.querySelectorAll('.status-item');
+
+statusItems.forEach(item => {
+  item.addEventListener('mouseenter', e => {
+    const rect = item.getBoundingClientRect();
+    tooltip.textContent = item.dataset.tooltip;
+    tooltip.style.opacity = '1';
+    tooltip.style.left = `${rect.left}px`;
+    tooltip.style.top = `${rect.bottom + 5}px`;
+  });
+
+  item.addEventListener('mouseleave', () => {
+    tooltip.style.opacity = '0';
+  });
+});
+
+// 图例弹窗处理
+const legendPopup = document.getElementById('legendPopup');
+const legendContent = legendPopup.querySelector('.legend-content');
+
+// 添加点击画布显示图例的功能
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left) / config.tileSize);
+  const y = Math.floor((e.clientY - rect.top) / config.tileSize);
+  
+  // 检查点击位置的内容
+  let content = '';
+  
+  // 检查各种游戏元素
+  const enemy = game.enemies.find(e => e.x === x && e.y === y);
+  const item = game.items.find(i => i.x === x && i.y === y);
+  const weapon = game.weapons.find(w => w.x === x && w.y === y);
+  const trap = game.traps.find(t => t.x === x && t.y === y);
+  const portal = game.portals.find(p => p.x === x && p.y === y);
+  
+  if (x === game.player.x && y === game.player.y) {
+    content = `
+      <div class="legend-item">
+        <div class="color-box" style="background: ${config.colors.player}"></div>
+        <div class="legend-description">
+          <div class="legend-title">玩家</div>
+          <div class="legend-subtitle">生命值: ${game.player.hp}/${game.player.maxHp}<br>
+          攻击力: ${game.player.attack}<br>
+          防御力: ${game.player.defense}</div>
+        </div>
+      </div>
+    `;
+  } else if (enemy) {
+    content = `
+      <div class="legend-item">
+        <div class="color-box" style="background: ${enemy.color || config.colors.enemy}"></div>
+        <div class="legend-description">
+          <div class="legend-title">${enemy.name || '敌人'}</div>
+          <div class="legend-subtitle">生命值: ${enemy.hp}<br>
+          攻击力: ${enemy.attack}<br>
+          ${enemy.isBoss ? '【Boss】' : enemy.isElite ? '【精英】' : ''}</div>
+        </div>
+      </div>
+    `;
+  } else if (item) {
+    content = `
+      <div class="legend-item">
+        <div class="color-box" style="background: ${item.color || config.colors.item}"></div>
+        <div class="legend-description">
+          <div class="legend-title">物品</div>
+          <div class="legend-subtitle">${item.description}</div>
+        </div>
+      </div>
+    `;
+  } else if (weapon) {
+    content = `
+      <div class="legend-item">
+        <div class="color-box" style="background: ${weapon.color || config.colors.weapon}"></div>
+        <div class="legend-description">
+          <div class="legend-title">${weapon.name}</div>
+          <div class="legend-subtitle">${weapon.description}<br>
+          攻击力: +${weapon.attack}<br>
+          ${weapon.special ? `特殊效果: ${weapon.special}` : ''}</div>
+        </div>
+      </div>
+    `;
+  } else if (trap) {
+    content = `
+      <div class="legend-item">
+        <div class="color-box" style="background: ${config.colors.trap}"></div>
+        <div class="legend-description">
+          <div class="legend-title">陷阱</div>
+          <div class="legend-subtitle">伤害: ${trap.damage}</div>
+        </div>
+      </div>
+    `;
+  } else if (portal) {
+    content = `
+      <div class="legend-item">
+        <div class="color-box" style="background: ${config.colors.portal}"></div>
+        <div class="legend-description">
+          <div class="legend-title">传送门</div>
+          <div class="legend-subtitle">通往下一层</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  if (content) {
+    legendContent.innerHTML = content;
+    legendPopup.style.display = 'block';
+    
+    // 计算弹窗位置
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const popupWidth = legendPopup.offsetWidth;
+    const popupHeight = legendPopup.offsetHeight;
+    
+    // 默认显示在点击位置的右侧
+    let left = e.clientX + 10;
+    let top = e.clientY;
+    
+    // 如果右侧空间不足，显示在左侧
+    if (left + popupWidth > viewportWidth - 10) {
+      left = e.clientX - popupWidth - 10;
+    }
+    
+    // 如果底部空间不足，向上移动
+    if (top + popupHeight > viewportHeight - 10) {
+      top = viewportHeight - popupHeight - 10;
+    }
+    
+    // 确保不超出左边界和上边界
+    left = Math.max(10, left);
+    top = Math.max(10, top);
+    
+    legendPopup.style.left = `${left}px`;
+    legendPopup.style.top = `${top}px`;
+  }
+});
+
+// 关闭图例弹窗
+function closeLegendPopup() {
+  legendPopup.style.display = 'none';
+}
+
+// 点击空白处关闭图例弹窗
+document.addEventListener('click', e => {
+  if (e.target === legendPopup || legendPopup.contains(e.target)) return;
+  if (e.target === canvas) return;
+  closeLegendPopup();
+});
+
+// 生成随机地图
+function generateMap() {
+  // 初始化地图
+  game.map = [];
+  for (let y = 0; y < config.mapHeight; y++) {
+    game.map[y] = [];
+    for (let x = 0; x < config.mapWidth; x++) {
+      game.map[y][x] = Math.random() < 0.3 ? 1 : 0;
+    }
+  }
+
+  // 确保玩家起始位置和周围可用
+  game.player.x = 1;
+  game.player.y = 1;
+  for (let y = 0; y <= 2; y++) {
+    for (let x = 0; x <= 2; x++) {
+      if (y < config.mapHeight && x < config.mapWidth) {
+        game.map[y][x] = 0;
+      }
+    }
+  }
+
+  // 使用洪水填充算法检查可达性
+  const visited = Array(config.mapHeight).fill().map(() => Array(config.mapWidth).fill(false));
+  const reachable = floodFill(game.map, visited, 1, 1);
+  const totalFloor = game.map.flat().filter(tile => tile === 0).length;
+  
+  // 如果可达区域小于总空地的80%，重新生成地图
+  if (reachable < totalFloor * 0.8) {
+    return generateMap();
+  }
+
+  // 生成敌人、物品等
+  generateEntities();
+}
+
+// 洪水填充算法检查可达性
+function floodFill(map, visited, x, y) {
+  if (x < 0 || x >= config.mapWidth || y < 0 || y >= config.mapHeight || 
+      visited[y][x] || map[y][x] === 1) {
+    return 0;
+  }
+
+  visited[y][x] = true;
+  let count = 1;
+
+  count += floodFill(map, visited, x + 1, y);
+  count += floodFill(map, visited, x - 1, y);
+  count += floodFill(map, visited, x, y + 1);
+  count += floodFill(map, visited, x, y - 1);
+
+  return count;
+}
+
+// 生成游戏实体（敌人、物品等）
+function generateEntities() {
+  // 清空现有实体
+  game.enemies = [];
+  game.items = [];
+  game.weapons = [];
+  game.traps = [];
+  game.portals = [];
+
+  // 生成敌人
+  const enemyCount = 3 + Math.floor(game.level / 2);
+  generateEnemies(enemyCount);
+
+  // 生成物品
+  const itemCount = Math.min(3 + Math.floor(game.level / 3), 6);
+  generateItems(itemCount);
+
+  // 生成武器
+  if (Math.random() < 0.7) {
+    generateWeapon();
+  }
+
+  // 生成陷阱
+  const trapCount = Math.floor(game.level / 3);
+  generateTraps(trapCount);
+
+  // 生成Boss
+  if (game.level % 5 === 0 && !game.bossDefeated) {
+    generateBoss();
+  }
+
+  // 生成传送门
+  if (Math.random() < 0.3) {
+    generatePortals();
+  }
+
+  // 触发随机事件
+  events.forEach(event => {
+    if (Math.random() < event.chance) {
+      event.trigger();
+    }
+  });
+}
+
+// 在可达区域生成实体的辅助函数
+function findEmptyPosition() {
+  let x, y;
+  let attempts = 0;
+  const maxAttempts = 100;
+
+  do {
+    x = Math.floor(Math.random() * (config.mapWidth - 2)) + 1;
+    y = Math.floor(Math.random() * (config.mapHeight - 2)) + 1;
+    attempts++;
+    
+    if (attempts >= maxAttempts) {
+      // 如果多次尝试失败，重新生成地图
+      generateMap();
+      return null;
+    }
+  } while (
+    game.map[y][x] !== 0 || 
+    isPositionOccupied(x, y) ||
+    (Math.abs(x - game.player.x) < 2 && Math.abs(y - game.player.y) < 2)
+  );
+
+  return { x, y };
+}
+
+// 生成敌人
+function generateEnemies(count) {
+  for (let i = 0; i < count; i++) {
+    const pos = findEmptyPosition();
+    if (!pos) return;
+    
+    const enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+    game.enemies.push({
+      ...enemyType,
+      x: pos.x,
+      y: pos.y,
+      hp: enemyType.hp + game.level * 5,
+      maxHp: enemyType.hp + game.level * 5,
+      attack: enemyType.attack + Math.floor(game.level / 2)
+    });
+  }
+}
+
+// 生成物品
+function generateItems(count) {
+  for (let i = 0; i < count; i++) {
+    const pos = findEmptyPosition();
+    if (!pos) return;
+    
+    const itemType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+    game.items.push({ ...itemType, x: pos.x, y: pos.y });
+  }
+}
+
+// 生成武器
+function generateWeapon() {
+  const pos = findEmptyPosition();
+  if (!pos) return;
+  
+  const weaponLevel = Math.min(Math.floor(game.level / 3), weaponTypes.length - 1);
+  const weaponType = weaponTypes[Math.max(0, weaponLevel)];
+  game.weapons.push({ ...weaponType, x: pos.x, y: pos.y });
+}
+
+// 生成陷阱
+function generateTraps(count) {
+  for (let i = 0; i < count; i++) {
+    const pos = findEmptyPosition();
+    if (!pos) return;
+    
+    game.traps.push({ 
+      x: pos.x, 
+      y: pos.y, 
+      damage: 10 + game.level * 2 
+    });
+  }
+}
+
+// 生成Boss
+function generateBoss() {
+  const pos = findEmptyPosition();
+  if (!pos) return;
+  
+  const bossType = bossTypes[Math.floor(Math.random() * bossTypes.length)];
+  game.enemies.push({
+    ...bossType,
+    x: pos.x,
+    y: pos.y,
+    isBoss: true,
+    hp: bossType.hp,
+    maxHp: bossType.hp
+  });
+}
+
+// 生成传送门
+function generatePortals() {
+  const pos1 = findEmptyPosition();
+  if (!pos1) return;
+  
+  const pos2 = findEmptyPosition();
+  if (!pos2) return;
+  
+  game.portals = [
+    { x: pos1.x, y: pos1.y, target: { x: pos2.x, y: pos2.y } },
+    { x: pos2.x, y: pos2.y, target: { x: pos1.x, y: pos1.y } }
+  ];
+}
+
+// 渲染游戏
+function render() {
+  if (game.isPaused) return;
+
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 绘制地图
+  for (let y = 0; y < config.mapHeight; y++) {
+    for (let x = 0; x < config.mapWidth; x++) {
+      ctx.fillStyle = game.map[y][x] ? config.colors.wall : config.colors.floor;
+      ctx.fillRect(
+        x * config.tileSize,
+        y * config.tileSize,
+        config.tileSize - 1,
+        config.tileSize - 1
+      );
+    }
+  }
+
+  // 绘制陷阱
+  game.traps.forEach(trap => {
+    ctx.fillStyle = config.colors.trap;
+    ctx.fillRect(
+      trap.x * config.tileSize,
+      trap.y * config.tileSize,
+      config.tileSize - 1,
+      config.tileSize - 1
+    );
+  });
+
+  // 绘制传送门
+  game.portals.forEach(portal => {
+    ctx.fillStyle = config.colors.portal;
+    ctx.fillRect(
+      portal.x * config.tileSize,
+      portal.y * config.tileSize,
+      config.tileSize - 1,
+      config.tileSize - 1
+    );
+  });
+
+  // 绘制物品
+  game.items.forEach(item => {
+    ctx.fillStyle = item.color || config.colors.item;
+    ctx.fillRect(
+      item.x * config.tileSize,
+      item.y * config.tileSize,
+      config.tileSize - 1,
+      config.tileSize - 1
+    );
+  });
+
+  // 绘制武器
+  game.weapons.forEach(weapon => {
+    ctx.fillStyle = weapon.color || config.colors.weapon;
+    ctx.fillRect(
+      weapon.x * config.tileSize,
+      weapon.y * config.tileSize,
+      config.tileSize - 1,
+      config.tileSize - 1
+    );
+  });
+
+  // 绘制敌人
+  game.enemies.forEach(enemy => {
+    ctx.fillStyle = enemy.isBoss ? config.colors.boss : 
+                   enemy.isElite ? "#ff00ff" : 
+                   enemy.color || config.colors.enemy;
+    ctx.fillRect(
+      enemy.x * config.tileSize,
+      enemy.y * config.tileSize,
+      config.tileSize - 1,
+      config.tileSize - 1
+    );
+    
+    // 绘制敌人血条
+    const hpPercent = enemy.hp / (enemy.maxHp || enemy.hp);
+    const barWidth = config.tileSize - 2;
+    const currentBarWidth = barWidth * hpPercent;
+    
+    // 血条背景
+    ctx.fillStyle = "#600";
+    ctx.fillRect(
+      enemy.x * config.tileSize,
+      enemy.y * config.tileSize - 4,
+      barWidth,
+      3
+    );
+    
+    // 当前血量
+    ctx.fillStyle = "#f00";
+    ctx.fillRect(
+      enemy.x * config.tileSize,
+      enemy.y * config.tileSize - 4,
+      currentBarWidth,
+      3
+    );
+  });
+
+  // 绘制玩家
+  ctx.fillStyle = config.colors.player;
+  ctx.fillRect(
+    game.player.x * config.tileSize,
+    game.player.y * config.tileSize,
+    config.tileSize - 1,
+    config.tileSize - 1
+  );
+  
+  // 绘制玩家血条
+  const playerHpPercent = game.player.hp / game.player.maxHp;
+  const hpWidth = config.tileSize - 2;
+  const currentHpWidth = hpWidth * playerHpPercent;
+  
+  // 血条背景
+  ctx.fillStyle = "#600";
+  ctx.fillRect(
+    game.player.x * config.tileSize,
+    game.player.y * config.tileSize - 4,
+    hpWidth,
+    3
+  );
+  
+  // 当前血量
+  ctx.fillStyle = "#f00";
+  ctx.fillRect(
+    game.player.x * config.tileSize,
+    game.player.y * config.tileSize - 4,
+    currentHpWidth,
+    3
+  );
+
+  // 渲染楼梯
+  if (game.stairs) {
+    ctx.fillStyle = config.colors.stairs;
+    ctx.fillRect(
+      game.stairs.x * config.tileSize,
+      game.stairs.y * config.tileSize,
+      config.tileSize - 1,
+      config.tileSize - 1
+    );
+  }
+}
+
+// 更新状态显示
+function updateStatus() {
+  document.getElementById("levelText").textContent = game.level;
+  document.getElementById("hpText").textContent = `${game.player.hp}`;
+  document.getElementById("attackText").textContent = 
+    game.player.attack + (game.player.weapon ? game.player.weapon.attack : 0);
+  document.getElementById("defenseText").textContent = game.player.defense;
+  document.getElementById("scoreText").textContent = game.score;
+  document.getElementById("comboText").textContent = game.currentCombo;
+  document.getElementById("weaponText").textContent = game.player.weapon ? game.player.weapon.name : "-";
+  
+  const expProgress = Math.floor((game.player.exp / game.player.nextLevelExp) * 100);
+  document.getElementById("expText").textContent = `${expProgress}%`;
+}
+
+// 处理敌人死亡
+function handleEnemyDeath(enemy) {
+  game.enemies = game.enemies.filter(e => e !== enemy);
+  let expGain = enemy.exp;
+  let scoreGain = 100 * game.level;
+  
+  if (enemy.isBoss) {
+    expGain *= 2;
+    scoreGain = 1000 * game.level;
+    game.bossDefeated = true;
+    game.bossKills++;
+    showNotification(`击败Boss！获得 ${expGain} 经验值和大量分数！`, 'important');
+    
+    if (Math.random() < 0.5) {
+      const pos = findEmptyPosition();
+      if (pos) {
+        game.weapons.push({
+          ...weaponTypes[weaponTypes.length - 1],
+          x: pos.x,
+          y: pos.y
+        });
+      }
+    }
+  } else if (enemy.isElite) {
+    expGain *= 1.5;
+    scoreGain *= 2;
+    game.eliteKills++;
+    showNotification(`击败精英怪物！获得 ${expGain} 经验值！`, 'important');
+  } else {
+    showNotification(`击败敌人！连击 ${game.currentCombo}！获得 ${expGain} 经验值`, 'normal');
+  }
+  
+  game.player.exp += expGain;
+  game.score += scoreGain;
+  game.totalKills++;
+  
+  // 经验值检查
+  while (game.player.exp >= game.player.nextLevelExp) {
+    game.player.exp -= game.player.nextLevelExp;
+    playerLevelUp();
+  }
+  
+  checkAchievements();
+}
+
+// 添加生成楼梯的函数
+function generateStairs() {
+  if (game.enemies.length === 0 && !game.stairs) {
+    let pos;
+    do {
+      pos = findEmptyPosition();
+    } while (!pos || (Math.abs(pos.x - game.player.x) < 3 && Math.abs(pos.y - game.player.y) < 3));
+    
+    if (pos) {
+      game.stairs = { x: pos.x, y: pos.y };
+      showNotification("楼梯出现了！", "info");
+    }
+  }
+}
+
+// 添加确认框显示函数
+function showConfirmation(message) {
+  const confirmationDiv = document.createElement('div');
+  confirmationDiv.className = 'modal';
+  confirmationDiv.id = 'confirmationModal';
+  confirmationDiv.style.display = 'block';
+  confirmationDiv.innerHTML = `
+    <h2>${message}</h2>
+    <button class="btn" onclick="confirmNextLevel()">确认</button>
+    <button class="btn" onclick="cancelNextLevel()">取消</button>
+  `;
+  document.body.appendChild(confirmationDiv);
+}
+
+// 添加确认和取消函数
+function confirmNextLevel() {
+  document.getElementById('confirmationModal').remove();
+  game.showingConfirmation = false;
+  game.level++;
+  if (game.level > game.maxLevel) game.maxLevel = game.level;
+  game.score += 500;
+  game.currentCombo = 0;
+  showNotification(`进入第 ${game.level} 层！`);
+  game.stairs = null;
+  generateMap();
+  checkAchievements();
+  updateStatus();
+  render();
+}
+
+function cancelNextLevel() {
+  document.getElementById('confirmationModal').remove();
+  game.showingConfirmation = false;
 }
