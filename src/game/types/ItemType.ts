@@ -1,0 +1,9 @@
+export enum ItemType {
+  WEAPON = 'WEAPON',
+  ARMOR = 'ARMOR',
+  ACCESSORY = 'ACCESSORY',
+  CONSUMABLE = 'CONSUMABLE',
+  MATERIAL = 'MATERIAL',
+  QUEST = 'QUEST',
+  KEY = 'KEY'
+}

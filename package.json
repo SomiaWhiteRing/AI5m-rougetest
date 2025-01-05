@@ -1,0 +1,52 @@
+{
+  "name": "rouge-test",
+  "version": "1.0.0",
+  "description": "A roguelike game test system",
+  "main": "index.js",
+  "scripts": {
+    "start": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:performance": "vitest run --config vitest.performance.config.ts",
+    "test:compatibility": "vitest run --config vitest.compatibility.config.ts",
+    "test:stress": "vitest run --config vitest.stress.config.ts",
+    "test:watch": "vitest watch",
+    "coverage": "vitest run --coverage",
+    "test:report": "node scripts/generate-test-report.ts",
+    "test:performance:check": "node scripts/check-performance.ts"
+  },
+  "dependencies": {
+    "crypto-js": "^4.2.0",
+    "pako": "^2.1.0",
+    "phaser": "^3.70.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.1",
+    "@types/node": "^20.10.5",
+    "@types/pako": "^2.0.3",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/coverage-v8": "^1.1.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10",
+    "vitest": "^1.1.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
